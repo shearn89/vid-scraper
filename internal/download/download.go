@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -20,6 +21,11 @@ type Options struct {
 	Dir          string
 	SkipExisting bool
 	Progress     bool
+	// OnBytes, when set, is called as the transfer advances with the bytes
+	// written so far and the expected total, which is 0 when the server did
+	// not say. It exists so a caller drawing its own display can have the same
+	// numbers the built-in bar would use.
+	OnBytes func(done, total int64)
 }
 
 // Downloader fetches media files.
@@ -51,11 +57,25 @@ type Result struct {
 // complete. The part file is keyed on a hash of the URL, which keeps resume
 // correct even when two different URLs derive the same display name.
 func (d *Downloader) Download(ctx context.Context, rawURL string) (*Result, error) {
+	return d.DownloadAs(ctx, rawURL, "")
+}
+
+// DownloadAs is Download with an explicit filename stem, used when the caller
+// knows a better name than the URL carries. CDN-hosted media is the case that
+// needs it: a playlist URL ending in an opaque asset ID yields a filename no
+// human would recognise, while the page that linked it knows the title.
+//
+// The extension is still derived from the URL and response, never from the
+// stem, so callers pass "chip-chipping" and get "chip-chipping.mp4".
+func (d *Downloader) DownloadAs(ctx context.Context, rawURL, stem string) (*Result, error) {
 	if err := os.MkdirAll(d.opts.Dir, 0o755); err != nil {
 		return nil, err
 	}
 
 	name := NameFromURL(rawURL)
+	if stem != "" {
+		name = Sanitize(stem) + path.Ext(name)
+	}
 	if d.opts.SkipExisting {
 		if p := filepath.Join(d.opts.Dir, name); exists(p) {
 			return &Result{Path: p, Existing: true}, nil
@@ -118,7 +138,15 @@ func (d *Downloader) Download(ctx context.Context, rawURL string) (*Result, erro
 	bar := progress.New(name, total, d.opts.Progress)
 	bar.Add(have)
 
-	written, copyErr := io.Copy(io.MultiWriter(f, bar), resp.Body)
+	sink := io.Writer(bar)
+	if d.opts.OnBytes != nil {
+		sink = io.MultiWriter(bar, &countingWriter{
+			done:  have,
+			total: total,
+			fn:    d.opts.OnBytes,
+		})
+	}
+	written, copyErr := io.Copy(io.MultiWriter(f, sink), resp.Body)
 	closeErr := f.Close()
 	bar.Done()
 	if copyErr != nil {
@@ -131,9 +159,13 @@ func (d *Downloader) Download(ctx context.Context, rawURL string) (*Result, erro
 
 	// The final name may improve on the URL-derived one now that headers are
 	// known; the part file's identity does not change, only the rename target.
+	// An explicit stem is the caller's decision and outranks the server's
+	// suggestion; without one, Content-Disposition is the better source.
 	finalName := name
-	if fromHeader := NameFromDisposition(resp.Header.Get("Content-Disposition")); fromHeader != "" {
-		finalName = fromHeader
+	if stem == "" {
+		if fromHeader := NameFromDisposition(resp.Header.Get("Content-Disposition")); fromHeader != "" {
+			finalName = fromHeader
+		}
 	}
 	finalName = EnsureExt(finalName, resp.Header.Get("Content-Type"))
 
@@ -158,4 +190,20 @@ func DisplayPath(p string) string {
 		}
 	}
 	return p
+}
+
+// countingWriter reports transfer progress to a callback. It counts bytes
+// rather than wrapping the reader so that a resumed download's starting offset
+// is included, which is what makes the reported figure match the file's size
+// on disk rather than the size of this run's transfer.
+type countingWriter struct {
+	done  int64
+	total int64
+	fn    func(done, total int64)
+}
+
+func (w *countingWriter) Write(p []byte) (int, error) {
+	w.done += int64(len(p))
+	w.fn(w.done, w.total)
+	return len(p), nil
 }

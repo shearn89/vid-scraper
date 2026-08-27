@@ -37,3 +37,8 @@ go.work.sum
 # Partial downloads
 *.part
 *.parts/
+
+# Local config dropped in the repo root for testing. The negation keeps the
+# checked-in example tracked.
+/config*.toml
+!/config.example.toml

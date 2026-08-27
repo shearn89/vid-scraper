@@ -1,0 +1,53 @@
+# vid-scraper configuration.
+#
+# Copy to ~/.config/vid-scraper/config.toml (or $XDG_CONFIG_HOME/vid-scraper/
+# config.toml if you set that). Every setting is optional; with no config file
+# at all, downloads land in the current directory.
+#
+# A leading "~/" is expanded to your home directory. A "~user" form is left
+# alone rather than guessed at, so write those out in full.
+#
+# Any site given a `url` appears in the picker when vid-scraper is run with no
+# arguments, so a configured site is a couple of keypresses away. Flags given
+# on the command line always beat the values recorded here.
+
+# Where downloads go for any site without its own entry below.
+default_dir = "~/Videos"
+
+# Per-site settings, keyed by host. Lookups ignore case and a leading "www.",
+# so "farmvids.example" also matches "WWW.FarmVids.example".
+[sites."farmvids.example"]
+name = "Farmyard Friends TV"
+dir = "~/Videos/farmyard-friends"
+
+# Start from the sitemap, not the catalogue page. The catalogue is assembled in
+# the browser from a frame on a CDN host that will not accept the site's own
+# session cookie, so scraping it yields nothing; the sitemap lists every
+# programme in a single request and is the route the site itself advertises in
+# robots.txt.
+url = "https://farmvids.example/sitemap.xml"
+
+# The sitemap also lists pages and categories; only follow the programmes.
+match = "/programs/"
+
+# Three hops: sitemap -> programme page -> its turbo-frame -> the frame holding
+# the player. The media URL only appears at the last one.
+depth = 3
+
+# The player is behind a login. Read the session from the local browser profile
+# rather than pasting a cookie by hand.
+cookie_from_browser = true
+
+# The streams are MPEG-TS, so rewrap them into MP4 with ffmpeg after download.
+remux = true
+
+# Every programme's title starts with the show's name, which is redundant once
+# the files sit in a directory called farmyard-friends. Stripped before the title
+# becomes a filename, so "Farmyard Friends Go Digging" lands as goes-farming.mp4.
+# This is a regular expression, and it is validated when the config is loaded.
+title_trim = "^Farmyard Friends "
+
+# A second site, showing that nothing beyond `dir` is required. Without a `url`
+# this one simply never appears in the picker.
+[sites."example.com"]
+dir = "/srv/media/example"

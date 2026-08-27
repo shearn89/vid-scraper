@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<!--
+Uscreen program (player) page, farmvids.example.
+
+Modelled on the rendered DOM of the nested turbo-frames such a program page
+lazy-loads. Hosts, titles and identifiers are invented; the structure is what
+matters and is reproduced faithfully. Trimmed to what bears on discovery: the
+controls, sharing modal, calendar widgets and analytics spans are dropped.
+
+What this exercises:
+
+  - turbo-frames nested three deep, each with its own src. Following them is
+    the only way to reach the player: server-rendered HTML has the addresses
+    and none of the content.
+  - a <turbo-frame> with no src (program_player) — already-rendered content,
+    nothing to fetch.
+  - the master HLS manifest on <source> inside <video>, inside a
+    <video-player> custom element.
+  - <video src="blob:..."> — a MediaSource handle, not a fetchable URL. It
+    must not be reported as a video.
+  - poster= and storyboard image URLs that must not be mistaken for media.
+  - related-video cards, which are ordinary anchors to further program pages.
+-->
+<html lang="en">
+<head><title>Flat Tyre | Farmyard Friends TV</title></head>
+<body>
+<turbo-frame class="block pt-4" id="program_show" src="/programs/ff-flat-tyre_master_2k-mp4-a1b2c3.turbo_stream?category_id=100200&amp;playlist_position=sidebar&amp;preview=false">
+  <turbo-frame id="program_player">
+    <turbo-frame id="program_content" src="/programs/ff-flat-tyre_master_2k-mp4-a1b2c3/program_content?category_id=100200&amp;preview=false">
+
+<div id="program-controller" class="container hotwired" data-program-id="1000003">
+  <div class="flex items-stretch" data-program-player="">
+    <div class="flex-1 max-w-full">
+
+<script type="module" crossorigin="" src="https://cdn.jsdelivr.net/npm/@uscreentv/video-player@1.5.0-next.3/+esm"></script>
+
+<video-player dir="lrt" data-test="player" data-id="1000003" data-program-video-timeline-preview-storyboard-url-value="https://image.video.example/Zx01PLACEHOLDERvideoID000example/storyboard.json?token=TOKEN_ELIDED" storage-key="uscreen:video">
+  <video slot="video" crossorigin="anonymous" playsinline="" data-program-video-target="video" poster="https://images.cdn.example/assets%2Ftmp%2Ftttv_tyretroube_iframe.1784052996.jpg" autoplay="true" src="blob:https://farmvids.example/00000001-0000-4000-8000-000000000001">
+    <source src="https://stream.video.example/Zx01PLACEHOLDERvideoID000example.m3u8?token=TOKEN_ELIDED" type="application/x-mpegURL">
+    <track kind="subtitles" label="English (auto-generated)" srclang="en" src="data:,WEBVTT">
+  </video>
+</video-player>
+
+    </div>
+  </div>
+
+  <turbo-frame id="program_buttons">
+    <h1 class="program-title" data-area="program-title">Flat Tyre</h1>
+    <turbo-frame loading="lazy" id="program_trailer" src="/programs/ff-flat-tyre_master_2k-mp4-a1b2c3/trailer"></turbo-frame>
+  </turbo-frame>
+
+  <div id="program_about">
+    <div class="content-description">
+      The Cows are waiting for their favourite machine, but there's a flat tyre.
+    </div>
+    <div class="content-categories">
+      <a class="category" data-turbo-frame="_top" href="/categories/category-aaaabbbbccc">New Farmyard Friends</a>
+    </div>
+    <turbo-frame loading="lazy" id="program_resources" src="https://farmvids.example/programs/ff-flat-tyre_master_2k-mp4-a1b2c3/resources" complete=""></turbo-frame>
+  </div>
+</div>
+
+<turbo-frame loading="lazy" id="program_related" src="https://farmvids.example/programs/ff-flat-tyre_master_2k-mp4-a1b2c3/related" target="_top" complete="">
+  <div class="container" data-area="program-related-videos">
+    <div class="cbt-related-title">Related Videos</div>
+    <div data-area="related-video-item">
+      <swiper-slide data-card="video_1000005" data-catalog--card-analytics-content-id-value="1000005" class="self-start hotwired">
+        <a class="card-image-container" data-turbo-frame="_top" href="/programs/wood-chipping-master-4k-e5f6a1?from=related">
+          <img loading="lazy" alt="Wood Chipping" src="https://images.cdn.example/images/programs/1000005/horizontal/1b11cbba.jpg?auto=webp&amp;width=350">
+          <div class="badge"><span class="badge-item">12:58</span></div>
+        </a>
+        <a class="card-title" data-turbo-frame="_top" title="Wood Chipping" aria-label="Wood Chipping" href="/programs/wood-chipping-master-4k-e5f6a1?from=related">
+          <span class="line-clamp-2">Wood Chipping</span>
+        </a>
+      </swiper-slide>
+    </div>
+  </div>
+</turbo-frame>
+
+    </turbo-frame>
+  </turbo-frame>
+</turbo-frame>
+</body>
+</html>

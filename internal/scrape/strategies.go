@@ -16,6 +16,7 @@ const (
 	StrategyJSONLD   = "json-ld"
 	StrategyScript   = "script"
 	StrategyIframe   = "iframe"
+	StrategyFrame    = "turbo-frame"
 )
 
 // mediaAttrs are the attributes that carry a media URL on a media element.
@@ -41,6 +42,10 @@ func (d *discoverer) visitElement(n *html.Node) {
 		if d.docTitle == "" {
 			d.docTitle = text(n)
 		}
+	case "h1":
+		if d.h1Title == "" {
+			d.h1Title = text(n)
+		}
 	case "video", "audio", "embed":
 		d.mediaTag(n)
 	case "source":
@@ -61,6 +66,8 @@ func (d *discoverer) visitElement(n *html.Node) {
 		d.meta(n)
 	case "iframe":
 		d.iframe(n)
+	case "turbo-frame":
+		d.turboFrame(n)
 	case "script":
 		d.script(n)
 	}
@@ -87,11 +94,48 @@ func (d *discoverer) anchor(n *html.Node) {
 	if abs == "" {
 		return
 	}
+	title, rank := anchorTitle(n)
 	if kind := Classify(abs); kind != "" {
-		d.addVideo(href, kind, StrategyAnchor, text(n))
+		d.addVideo(href, kind, StrategyAnchor, title)
 		return
 	}
-	d.addLink(href, LinkAnchor, text(n))
+	d.addLink(href, LinkAnchor, title, rank)
+}
+
+// anchorTitle picks the best label available for a link, and reports where it
+// came from so a repeat sighting of the same href can be compared against it.
+func anchorTitle(n *html.Node) (string, titleRank) {
+	for _, a := range []string{"title", "aria-label"} {
+		if v, ok := attr(n, a); ok && strings.TrimSpace(v) != "" {
+			return v, titleAttr
+		}
+	}
+	if alt := descendantImgAlt(n); alt != "" {
+		return alt, titleAlt
+	}
+	return text(n), titleText
+}
+
+// descendantImgAlt returns the alt text of the first image inside n, if any.
+func descendantImgAlt(n *html.Node) string {
+	var found string
+	var rec func(*html.Node)
+	rec = func(x *html.Node) {
+		if found != "" {
+			return
+		}
+		if x.Type == html.ElementNode && strings.EqualFold(x.Data, "img") {
+			if v, ok := attr(x, "alt"); ok && strings.TrimSpace(v) != "" {
+				found = strings.TrimSpace(v)
+				return
+			}
+		}
+		for c := x.FirstChild; c != nil; c = c.NextSibling {
+			rec(c)
+		}
+	}
+	rec(n)
+	return found
 }
 
 // meta reads Open Graph and Twitter card video properties.
@@ -138,7 +182,32 @@ func (d *discoverer) iframe(n *html.Node) {
 		return
 	}
 	title, _ := attr(n, "title")
-	d.addLink(src, LinkIframe, title)
+	d.addLink(src, LinkIframe, title, titleAttr)
+}
+
+// turboFrame records a Hotwire <turbo-frame src> as a document to follow.
+//
+// A turbo-frame with a src is empty markup until the browser fetches that URL
+// and swaps the response in. Server-rendered HTML therefore contains the
+// frame's address but none of its content, which is why a page can look like
+// it has no videos while displaying a full catalogue. Frames without a src
+// are already-rendered content and carry nothing to follow.
+func (d *discoverer) turboFrame(n *html.Node) {
+	src, ok := attr(n, "src")
+	if !ok || strings.TrimSpace(src) == "" {
+		return
+	}
+	abs := d.resolve(src)
+	if abs == "" {
+		return
+	}
+	// A frame addressing a media file directly is a video, not a document.
+	if kind := Classify(abs); kind != "" {
+		d.addVideo(src, kind, StrategyFrame, "")
+		return
+	}
+	id, _ := attr(n, "id")
+	d.addLink(src, LinkFrame, id, titleNone)
 }
 
 // script handles both JSON-LD blocks and the inline-script regex sweep.

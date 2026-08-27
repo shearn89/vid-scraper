@@ -41,6 +41,11 @@ type Options struct {
 	Warnf func(format string, args ...any)
 	// Logf receives verbose progress.
 	Logf func(format string, args ...any)
+	// OnSegment, when set, is called as each segment lands, with the number
+	// finished and the total expected. It exists so a caller drawing its own
+	// display can have the same numbers the built-in bar would use; it is
+	// called from the segment workers, so it must be safe for concurrent use.
+	OnSegment func(done, total int)
 }
 
 // Downloader assembles HLS streams into a single file.
@@ -85,6 +90,18 @@ func (d *Downloader) logf(format string, args ...any) {
 
 // Download fetches an M3U8 stream and writes it as a single file.
 func (d *Downloader) Download(ctx context.Context, rawURL string) (*Result, error) {
+	return d.DownloadAs(ctx, rawURL, "")
+}
+
+// DownloadAs is Download with an explicit filename stem, used when the caller
+// knows a better name than the URL carries. An HLS master playlist is exactly
+// that case: its URL commonly ends in an opaque CDN asset ID, while the page
+// that embedded it knows the human title.
+//
+// The extension still comes from the playlist's own segment format, never from
+// the stem, so a caller passing "chip-chipping" gets ".ts" or ".mp4" according
+// to what the stream actually contains.
+func (d *Downloader) DownloadAs(ctx context.Context, rawURL, stem string) (*Result, error) {
 	media, mediaURL, err := d.resolveMedia(ctx, rawURL)
 	if err != nil {
 		return nil, err
@@ -102,6 +119,9 @@ func (d *Downloader) Download(ctx context.Context, rawURL string) (*Result, erro
 	}
 
 	name := streamName(rawURL, media)
+	if stem != "" {
+		name = sanitizeName(stem) + path.Ext(name)
+	}
 	finalPath := filepath.Join(d.opts.Dir, name)
 	if d.opts.SkipExisting {
 		if _, err := os.Stat(finalPath); err == nil {
@@ -281,6 +301,9 @@ func (d *Downloader) fetchSegments(ctx context.Context, m *Media, base *url.URL,
 		n := done
 		mu.Unlock()
 		bar.Set(n)
+		if d.opts.OnSegment != nil {
+			d.opts.OnSegment(int(n), len(m.Segments))
+		}
 	}
 
 	for i, seg := range m.Segments {

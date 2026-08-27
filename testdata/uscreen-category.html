@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<!--
+Uscreen storefront category listing (farmvids.example, "New Farmyard Friends").
+
+Modelled on the rendered DOM of the <turbo-frame id="category_content">
+that such a storefront lazy-loads from its CDN. Hosts, titles and identifiers
+are invented; the structure is what matters and is reproduced faithfully. The
+server response for the containing page holds none of this: the frame is empty
+markup until the browser fetches it with a session cookie.
+
+Trimmed to 4 of the 32 cards. Every card is structurally identical, so the
+remainder add bulk without adding coverage. What each card exercises:
+
+  - two <a> elements per card sharing one href: the image link and the
+    title link. The image link comes first and its only text is the
+    duration badge, so naive first-wins title extraction labels the video
+    "11:36" rather than "It's Seed Time".
+  - hrefs are program pages, not media files. No extension to classify.
+  - the real title also sits in title=/aria-label= on the second anchor,
+    and in alt= on the img.
+  - <swiper-slide> custom elements wrapping each card.
+-->
+<html lang="en">
+<head><title>New Farmyard Friends</title></head>
+<body>
+<turbo-frame id="category_content" target="_top" class="px-[3%] py-8 grid gap-x-4 gap-y-6 grid-cols-1 catalog-max-width mx-auto">
+
+      <swiper-slide data-card="video_1000001" data-custom="content-card" data-controller="catalog--card-analytics" data-catalog--card-analytics-content-id-value="1000001" data-catalog--card-analytics-content-type-value="video" data-catalog--card-analytics-category-name-value="New Farmyard Friends" data-catalog--card-analytics-result-position-value="1" data-catalog--card-analytics-result-set-size-value="32" class="self-start hotwired" data-short-description="How will the whole field be planted with tiny seeds?" data-published-at="2026-08-18T08:51:34+01:00">
+  <a class="card-image-container" data-turbo="true" data-turbo-prefetch="false" data-turbo-action="advance" data-turbo-frame="_top" data-action="click-&gt;catalog--card-analytics#trackClick" href="/programs/ff-its-seed-time_master_stereo-b2c3d4?category_id=100200">
+    <div class="image-container relative" data-test="catalog-card">
+  <div class="relative image-content">
+    <div aria-hidden="true" style="padding-bottom: 56%;"></div>
+    <img loading="lazy" alt="It's Seed Time" decoding="async" src="https://images.cdn.example/images/programs/1000001/horizontal/00000001-0000-4000-8000-000000000001.png?auto=webp&amp;width=350" class="card-image b-image absolute object-cover h-full top-0 left-0" style="opacity: 1;">
+  </div>
+      <div class="badge flex justify-center items-center text-white content-card-badge z-0">
+        <span class="badge-item">11:36</span>
+      </div>
+
+</div>
+<div class="content-watched-overlay"></div>
+
+</a>  <a class="card-title" data-turbo="true" data-turbo-prefetch="false" data-turbo-action="advance" data-turbo-frame="_top" data-action="click-&gt;catalog--card-analytics#trackClick" title="It's Seed Time" aria-label="It's Seed Time" href="/programs/ff-its-seed-time_master_stereo-b2c3d4?category_id=100200">
+    <span class="line-clamp-2">
+      It's Seed Time
+    </span>
+</a></swiper-slide>
+
+      <swiper-slide data-card="video_1000002" data-custom="content-card" data-controller="catalog--card-analytics" data-catalog--card-analytics-content-id-value="1000002" data-catalog--card-analytics-content-type-value="video" data-catalog--card-analytics-category-name-value="New Farmyard Friends" data-catalog--card-analytics-result-position-value="2" data-catalog--card-analytics-result-set-size-value="32" class="self-start hotwired" data-short-description="Silage time sees the mower, forage harvester and baler busy at work." data-published-at="2026-07-25T13:50:05+01:00">
+  <a class="card-image-container" data-turbo="true" data-turbo-prefetch="false" data-turbo-action="advance" data-turbo-frame="_top" data-action="click-&gt;catalog--card-analytics#trackClick" href="/programs/silo-surprise-master-1-c3d4e5?category_id=100200">
+    <div class="image-container relative" data-test="catalog-card">
+  <div class="relative image-content">
+    <div aria-hidden="true" style="padding-bottom: 56%;"></div>
+    <img loading="lazy" alt="Silo Surprise" decoding="async" src="https://images.cdn.example/images/programs/1000002/horizontal/00000002-0000-4000-8000-000000000002.jpg?auto=webp&amp;width=350" class="card-image b-image absolute object-cover h-full top-0 left-0" style="opacity: 1;">
+  </div>
+      <div class="badge flex justify-center items-center text-white content-card-badge z-0">
+        <span class="badge-item">11:17</span>
+      </div>
+
+</div>
+<div class="content-watched-overlay"></div>
+
+</a>  <a class="card-title" data-turbo="true" data-turbo-prefetch="false" data-turbo-action="advance" data-turbo-frame="_top" data-action="click-&gt;catalog--card-analytics#trackClick" title="Silo Surprise" aria-label="Silo Surprise" href="/programs/silo-surprise-master-1-c3d4e5?category_id=100200">
+    <span class="line-clamp-2">
+      Silo Surprise
+    </span>
+</a></swiper-slide>
+
+      <swiper-slide data-card="video_1000003" data-custom="content-card" data-controller="catalog--card-analytics" data-catalog--card-analytics-content-id-value="1000003" data-catalog--card-analytics-content-type-value="video" data-catalog--card-analytics-category-name-value="New Farmyard Friends" data-catalog--card-analytics-result-position-value="4" data-catalog--card-analytics-result-set-size-value="32" class="self-start hotwired" data-short-description="Farmyard Friends and Midge rush to fix a flat tyre and save the day!" data-published-at="2026-06-15T15:07:28+01:00">
+  <a class="card-image-container" data-turbo="true" data-turbo-prefetch="false" data-turbo-action="advance" data-turbo-frame="_top" data-action="click-&gt;catalog--card-analytics#trackClick" href="/programs/ff-flat-tyre_master_2k-mp4-a1b2c3?category_id=100200">
+    <div class="image-container relative" data-test="catalog-card">
+  <div class="relative image-content">
+    <div aria-hidden="true" style="padding-bottom: 56%;"></div>
+    <img loading="lazy" alt="Flat Tyre" decoding="async" src="https://images.cdn.example/images/programs/1000003/horizontal/00000003-0000-4000-8000-000000000003.jpg?auto=webp&amp;width=350" class="card-image b-image absolute object-cover h-full top-0 left-0" style="opacity: 1;">
+  </div>
+      <div class="badge flex justify-center items-center text-white content-card-badge z-0">
+        <span class="badge-item">14:43</span>
+      </div>
+
+</div>
+<div class="content-watched-overlay"></div>
+
+</a>  <a class="card-title" data-turbo="true" data-turbo-prefetch="false" data-turbo-action="advance" data-turbo-frame="_top" data-action="click-&gt;catalog--card-analytics#trackClick" title="Flat Tyre" aria-label="Flat Tyre" href="/programs/ff-flat-tyre_master_2k-mp4-a1b2c3?category_id=100200">
+    <span class="line-clamp-2">
+      Flat Tyre
+    </span>
+</a></swiper-slide>
+
+      <swiper-slide data-card="video_1000004" data-custom="content-card" data-controller="catalog--card-analytics" data-catalog--card-analytics-content-id-value="1000004" data-catalog--card-analytics-content-type-value="video" data-catalog--card-analytics-category-name-value="New Farmyard Friends" data-catalog--card-analytics-result-position-value="5" data-catalog--card-analytics-result-set-size-value="32" class="self-start hotwired" data-short-description="Midge searches for the perfect Christmas tree to share with all her friends." data-published-at="2026-05-09T20:41:37+01:00">
+  <a class="card-image-container" data-turbo="true" data-turbo-prefetch="false" data-turbo-action="advance" data-turbo-frame="_top" data-action="click-&gt;catalog--card-analytics#trackClick" href="/programs/ff-winter-special_master_2k-mp4-d4e5f6?category_id=100200">
+    <div class="image-container relative" data-test="catalog-card">
+  <div class="relative image-content">
+    <div aria-hidden="true" style="padding-bottom: 56%;"></div>
+    <img loading="lazy" alt="Pip's Winter Wish" decoding="async" src="https://images.cdn.example/images/programs/1000004/horizontal/00000004-0000-4000-8000-000000000004.jpg?auto=webp&amp;width=350" class="card-image b-image absolute object-cover h-full top-0 left-0" style="opacity: 1;">
+  </div>
+      <div class="badge flex justify-center items-center text-white content-card-badge z-0">
+        <span class="badge-item">06:10</span>
+      </div>
+
+</div>
+<div class="content-watched-overlay"></div>
+
+</a>  <a class="card-title" data-turbo="true" data-turbo-prefetch="false" data-turbo-action="advance" data-turbo-frame="_top" data-action="click-&gt;catalog--card-analytics#trackClick" title="Pip's Winter Wish" aria-label="Pip's Winter Wish" href="/programs/ff-winter-special_master_2k-mp4-d4e5f6?category_id=100200">
+    <span class="line-clamp-2">
+      Pip's Winter Wish
+    </span>
+</a></swiper-slide>
+
+    <div data-controller="catalog--event-dispatcher" data-catalog--event-dispatcher-result-set-size-value="32" hidden=""></div>
+</turbo-frame>
+</body>
+</html>

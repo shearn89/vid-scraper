@@ -1,0 +1,80 @@
+# Run `pre-commit install && pre-commit install --hook-type pre-push` once per
+# clone. Go hooks shell out to tools already on PATH rather than pinning a
+# mirror repo, so they always match the toolchain that builds the project.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.2
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # testdata fixtures are captured bytes: reformatting them would quietly
+      # change what the regression tests assert against.
+      - id: trailing-whitespace
+        exclude: ^testdata/
+      - id: end-of-file-fixer
+        exclude: ^testdata/
+      - id: mixed-line-ending
+        exclude: ^testdata/
+      - id: check-yaml
+      - id: check-merge-conflict
+      # This repo sits next to a video library; a stray media file is a far
+      # likelier accident here than in most projects.
+      - id: check-added-large-files
+        args: [--maxkb=512]
+
+  - repo: local
+    hooks:
+      - id: go-fmt
+        name: go fmt
+        entry: gofmt -l -w
+        language: system
+        types: [go]
+
+      - id: go-imports
+        name: goimports
+        entry: goimports -w
+        language: system
+        types: [go]
+
+      - id: go-vet
+        name: go vet
+        entry: go vet ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      - id: staticcheck
+        name: staticcheck
+        entry: staticcheck ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      - id: golangci-lint
+        name: golangci-lint
+        entry: golangci-lint run
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      # Tests and the vulnerability scan run on push, not on every commit:
+      # both are too slow to sit in the commit loop, and neither is
+      # meaningfully per-file.
+      - id: go-test
+        name: go test -race
+        entry: go test -race ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: govulncheck
+        name: govulncheck
+        entry: govulncheck ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+        stages: [pre-push]

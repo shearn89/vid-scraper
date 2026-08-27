@@ -98,7 +98,12 @@ func TestDownloadAssemblesInOrder(t *testing.T) {
 // URIs resolve relative to the playlist that named them.
 func TestDownloadViaMaster(t *testing.T) {
 	const n = 4
-	var srv *httptest.Server
+	// The handler needs the server's own URL to build absolute segment links,
+	// so the variable must exist before the server that closes over it. Both
+	// directives say the same thing: staticcheck reads //lint:ignore,
+	// golangci-lint reads //nolint.
+	//lint:ignore S1021 declaration and assignment cannot be merged here
+	var srv *httptest.Server //nolint:staticcheck // S1021: see above
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/master.m3u8":

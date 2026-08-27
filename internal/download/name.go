@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // maxNameLen keeps derived names well inside the 255-byte limit common to
@@ -136,4 +137,142 @@ func exists(p string) bool {
 func shortHash(s string) string {
 	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:4])
+}
+
+// mediaExts are the extensions ExistingFile peels off when comparing a file
+// against a stem. HLS downloads land as "name.ts.mp4", so peeling repeats.
+var mediaExts = map[string]bool{
+	".mp4":  true,
+	".ts":   true,
+	".mkv":  true,
+	".webm": true,
+	".mov":  true,
+	".m4v":  true,
+	".avi":  true,
+}
+
+// asciiFold maps accented Latin letters onto plain ASCII. Hand-rolled rather
+// than depending on golang.org/x/text: full Unicode normalisation is a heavy
+// dependency for the handful of runes a video title actually carries.
+var asciiFold = foldTable(map[string]string{
+	"àáâãäåāăą":  "a",
+	"æ":          "ae",
+	"çćĉċč":      "c",
+	"ďđ":         "d",
+	"èéêëēĕėęě":  "e",
+	"ĝğġģ":       "g",
+	"ĥħ":         "h",
+	"ìíîïĩīĭįı":  "i",
+	"ĵ":          "j",
+	"ķ":          "k",
+	"ĺļľŀł":      "l",
+	"ñńņňŉ":      "n",
+	"òóôõöøōŏő":  "o",
+	"œ":          "oe",
+	"ŕŗř":        "r",
+	"śŝşš":       "s",
+	"ß":          "ss",
+	"ţťŧ":        "t",
+	"þ":          "th",
+	"ùúûüũūŭůűų": "u",
+	"ŵ":          "w",
+	"ýÿŷ":        "y",
+	"źżž":        "z",
+})
+
+// foldTable expands the grouped fold spec into a per-rune lookup, adding each
+// key's uppercase form so callers need not case-fold first.
+func foldTable(groups map[string]string) map[rune]string {
+	table := make(map[rune]string)
+	for src, dst := range groups {
+		for _, r := range src {
+			table[r] = dst
+			table[unicode.ToUpper(r)] = dst
+		}
+	}
+	return table
+}
+
+// NameFromTitle converts a human video title into a filename stem: lowercase,
+// ASCII, hyphen-separated. "Chip Chipping" -> "chip-chipping". Returns "" when
+// the title yields nothing usable. CDN-hosted playlists carry opaque IDs in
+// their URLs, so the page's title is the only name a human would recognise.
+func NameFromTitle(title string) string {
+	var b strings.Builder
+	b.Grow(len(title))
+	// Separators are held back and emitted only before the next kept rune, so
+	// leading, trailing and repeated runs collapse without a second pass.
+	sep := false
+	for _, r := range title {
+		// Apostrophes vanish rather than splitting a word: the library holds
+		// "its-sow-time", not "it-s-sow-time".
+		if r == '\'' || r == '’' {
+			continue
+		}
+		folded, ok := asciiFold[r]
+		if !ok {
+			folded = string(r)
+		}
+		for _, c := range folded {
+			if c >= 'A' && c <= 'Z' {
+				c += 'a' - 'A'
+			}
+			if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') {
+				if sep && b.Len() > 0 {
+					b.WriteByte('-')
+				}
+				sep = false
+				b.WriteByte(byte(c))
+				continue
+			}
+			sep = true
+		}
+	}
+	// Sanitize applies the shared truncation policy; that cut can land on a
+	// hyphen, hence the trim.
+	return strings.Trim(Sanitize(b.String()), "-")
+}
+
+// ExistingFile reports the path of a file in dir that already holds the video
+// named by stem, ignoring extension differences, and whether one was found. It
+// exists so a download can be skipped when the library already has the video
+// under a slightly different extension.
+func ExistingFile(dir, stem string) (string, bool) {
+	target := strings.ToLower(stem)
+	if target == "" {
+		return "", false
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", false
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := strings.ToLower(e.Name())
+		// A partial download is not the video; matching one would skip a real
+		// download and leave the library with a truncated file.
+		if strings.HasSuffix(name, ".part") || strings.HasSuffix(name, ".parts") {
+			continue
+		}
+		// Whole-stem equality only: "munchy-crunchy-1" is a collision-suffixed
+		// sibling, a different video, not this one.
+		if trimMediaExts(name) == target {
+			return filepath.Join(dir, e.Name()), true
+		}
+	}
+	return "", false
+}
+
+// trimMediaExts strips every trailing media extension, so "clip.ts.mp4",
+// "clip.ts" and "clip.mp4" all reduce to "clip".
+func trimMediaExts(name string) string {
+	for {
+		ext := path.Ext(name)
+		if ext == "" || !mediaExts[ext] {
+			return name
+		}
+		name = strings.TrimSuffix(name, ext)
+	}
 }

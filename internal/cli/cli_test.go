@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -265,5 +266,78 @@ func TestParseStartURL(t *testing.T) {
 		if _, err := parseStartURL(bad); err == nil {
 			t.Errorf("parseStartURL(%q) should have failed", bad)
 		}
+	}
+}
+
+// TestStemFor pins the naming precedence. The URL's own basename is normally
+// the best name; the title only takes over where the URL carries no real name.
+func TestStemFor(t *testing.T) {
+	cases := []struct {
+		name  string
+		video scrape.Video
+		want  string
+	}{
+		{
+			"real filename beats title",
+			scrape.Video{URL: "https://x.test/media/promo.mp4", Title: "Watch The Promo Now"},
+			"promo",
+		},
+		{
+			"HLS manifest defers to title",
+			scrape.Video{URL: "https://stream.video.example/Zx01PLACEHOLDER.m3u8?token=x", Title: "Flat Tyre"},
+			"flat-tyre",
+		},
+		{
+			"generic basename defers to title",
+			scrape.Video{URL: "https://x.test/hls/master.m3u8", Title: "Wood Chipping"},
+			"wood-chipping",
+		},
+		{
+			"generic direct basename defers to title",
+			scrape.Video{URL: "https://x.test/dl/video.mp4", Title: "Hey Hayloft"},
+			"hey-hayloft",
+		},
+		{
+			"manifest with no title keeps the URL stem",
+			scrape.Video{URL: "https://stream.video.example/Zx01PLACEHOLDER.m3u8"},
+			"Zx01PLACEHOLDER",
+		},
+		{
+			"title with no usable URL name",
+			scrape.Video{URL: "https://x.test/", Title: "Munchy Crunchy"},
+			"munchy-crunchy",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := stemFor(tc.video, nil); got != tc.want {
+				t.Errorf("stemFor() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestStemForTitleTrim covers the per-site title_trim pattern: sites commonly
+// prefix every title with the show's name, which is redundant once the files
+// live in a directory named after that show.
+func TestStemForTitleTrim(t *testing.T) {
+	trim := regexp.MustCompile(`^Farmyard Friends `)
+	cases := []struct{ title, want string }{
+		{"Farmyard Friends Go Digging", "go-digging"},
+		{"Farmyard Friends Meet the ponies", "meet-the-ponies"},
+		{"Farmyard Friends meet more ducks", "meet-more-ducks"}, // prefix matches; the lowercase word after it is untouched
+		{"Wood Chipping", "wood-chipping"},                      // untouched when the prefix is absent
+	}
+	for _, tc := range cases {
+		v := scrape.Video{URL: "https://x.test/hls/master.m3u8", Title: tc.title}
+		if got := stemFor(v, trim); got != tc.want {
+			t.Errorf("stemFor(%q) = %q, want %q", tc.title, got, tc.want)
+		}
+	}
+
+	// A nil pattern must leave the title alone.
+	v := scrape.Video{URL: "https://x.test/hls/master.m3u8", Title: "Farmyard Friends Go Digging"}
+	if got := stemFor(v, nil); got != "farmyard-friends-go-digging" {
+		t.Errorf("nil trim changed the title: %q", got)
 	}
 }

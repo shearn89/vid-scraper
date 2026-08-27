@@ -1,0 +1,64 @@
+# golangci-lint v2 configuration.
+#
+# The aim is a set of checks that only fire on real defects. A linter that
+# reports things nobody intends to change trains people to ignore it, which
+# costs more than it saves — so style-only checks are off and the well-known
+# safe-to-ignore error returns are excluded rather than silenced one call at a
+# time with `_ =`.
+version: "2"
+
+linters:
+  default: standard   # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - bodyclose       # a leaked HTTP body is a real resource leak
+    - misspell
+    - unconvert
+    - nilerr          # returning nil after checking an error is nearly always a bug
+
+  settings:
+    staticcheck:
+      # "all" minus the quickfix and style families: QF and ST checks propose
+      # rewrites (tagged switches, merged declarations) that are preferences,
+      # not defects. Plain `staticcheck ./...` does not run them either, so
+      # excluding them keeps the hook and the CLI in agreement.
+      checks:
+        - all
+        - -QF*
+        - -ST*
+
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
+      # Close on a handle we have finished reading, and writes to a terminal,
+      # have no recoverable failure mode: there is nothing the caller could do
+      # with the error but discard it.
+      exclude-functions:
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (io.ReadCloser).Close
+        - (*database/sql.DB).Close
+        - (*database/sql.Rows).Close
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - os.Remove
+        - os.RemoveAll
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - std-error-handling
+    rules:
+      # Test servers write to a ResponseWriter that cannot meaningfully fail,
+      # and a test that ignores a cleanup error still fails if the assertion
+      # it protects goes wrong.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - bodyclose
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

@@ -25,7 +25,19 @@ const (
 const (
 	LinkAnchor = "anchor"
 	LinkIframe = "iframe"
+	// LinkFrame is a lazy-loaded document fragment: a <turbo-frame src>. Like
+	// an iframe it is a promise that the real content lives at another URL,
+	// so it is followed on the same terms.
+	LinkFrame = "frame"
 )
+
+// IsEmbedded reports whether a link kind refers to a document the page embeds
+// rather than merely links to. Embedded documents are followed even across
+// hosts and regardless of --match: fetching them is what makes the containing
+// page whole, so the filters meant for navigation links do not apply.
+func IsEmbedded(kind string) bool {
+	return kind == LinkIframe || kind == LinkFrame
+}
 
 // Video is a discovered video URL.
 type Video struct {
@@ -119,17 +131,26 @@ func Discover(body []byte, base *url.URL, opts Options) (*Result, error) {
 		source:    base.String(),
 		opts:      opts,
 		seenVideo: make(map[string]bool),
-		seenLink:  make(map[string]bool),
+		seenLink:  make(map[string]int),
+		linkRank:  make(map[string]titleRank),
 	}
 	d.walk(doc)
-	// The page title is a better fallback than nothing for videos found by
-	// strategies with no local text to draw on, but it is only known after the
-	// walk, so it is applied last. og:title is preferred over the document
-	// title regardless of which appeared first in the markup: it is the label
-	// the page author chose for sharing, and is usually cleaner.
+	// A document-level title is a better fallback than nothing for videos found
+	// by strategies with no local text to draw on, but it is only known after
+	// the walk, so it is applied last.
+	//
+	// Preference order, regardless of which appeared first in the markup:
+	// og:title (the label the author chose for sharing, usually the cleanest),
+	// then the document title, then the first heading. The heading matters for
+	// fragments: a lazy-loaded frame is a slice of a page, so it carries a
+	// heading naming its subject but no <title> or og:title of its own, and
+	// without this a video found there would come out unnamed.
 	fallback := d.ogTitle
 	if fallback == "" {
 		fallback = d.docTitle
+	}
+	if fallback == "" {
+		fallback = d.h1Title
 	}
 	for i := range d.result.Videos {
 		if d.result.Videos[i].Title == "" {
@@ -146,10 +167,31 @@ type discoverer struct {
 	opts      Options
 	result    Result
 	seenVideo map[string]bool
-	seenLink  map[string]bool
-	docTitle  string
-	ogTitle   string
+	// seenLink maps a resolved URL to its index in result.Links, so a repeat
+	// sighting can revise the entry rather than only being dropped.
+	seenLink map[string]int
+	linkRank map[string]titleRank
+	docTitle string
+	ogTitle  string
+	h1Title  string
 }
+
+// titleRank orders the places a link's label can come from, worst first.
+//
+// One destination routinely appears on more than one anchor — a thumbnail
+// link and a caption link wrapping the same href is the standard catalogue
+// card layout. Whichever comes first in the markup is not necessarily the one
+// carrying the useful label: a thumbnail's only text is often an overlaid
+// badge such as a duration. Ranking the sources lets the better label win
+// regardless of document order.
+type titleRank int
+
+const (
+	titleNone titleRank = iota
+	titleText           // the anchor's inner text; incidental, may be a badge
+	titleAlt            // alt= on a nested image
+	titleAttr           // title= or aria-label= on the anchor itself
+)
 
 // resolve turns a possibly-relative reference into an absolute http(s) URL,
 // dropping the fragment. It returns "" for anything we cannot or should not
@@ -183,6 +225,13 @@ func (d *discoverer) addVideo(rawRef, kind, strategy, title string) {
 			kind = KindEmbed
 		}
 	}
+	// A player page that is the page we are already reading tells us nothing:
+	// schema.org embedUrl routinely points at the document carrying it, and
+	// reporting that as a find leaves the user with a list where every real
+	// video is shadowed by a copy of the page it came from.
+	if kind == KindEmbed && abs == d.source {
+		return
+	}
 	d.seenVideo[abs] = true
 	d.result.Videos = append(d.result.Videos, Video{
 		URL:      abs,
@@ -193,17 +242,32 @@ func (d *discoverer) addVideo(rawRef, kind, strategy, title string) {
 	})
 }
 
-func (d *discoverer) addLink(rawRef, kind, title string) {
+// addLink records a page worth following, deduping on the resolved URL. A URL
+// seen again keeps its existing entry and position, but adopts the new label
+// when that label comes from a better-ranked source.
+func (d *discoverer) addLink(rawRef, kind, title string, rank titleRank) {
 	abs := d.resolve(rawRef)
-	if abs == "" || d.seenLink[abs] {
+	if abs == "" {
 		return
 	}
-	d.seenLink[abs] = true
+	title = strings.TrimSpace(title)
+	if title == "" {
+		rank = titleNone
+	}
+	if i, seen := d.seenLink[abs]; seen {
+		if rank > d.linkRank[abs] {
+			d.result.Links[i].Title = title
+			d.linkRank[abs] = rank
+		}
+		return
+	}
+	d.seenLink[abs] = len(d.result.Links)
+	d.linkRank[abs] = rank
 	d.result.Links = append(d.result.Links, Link{
 		URL:    abs,
 		Source: d.source,
 		Kind:   kind,
-		Title:  strings.TrimSpace(title),
+		Title:  title,
 	})
 }
 

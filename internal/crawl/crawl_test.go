@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/shearn89/vid-scraper/internal/fetch"
 	"github.com/shearn89/vid-scraper/internal/scrape"
@@ -255,5 +256,131 @@ func TestFetchErrorsAreCollectedNotFatal(t *testing.T) {
 	}
 	if !contains(urls(videos), srv.URL+"/ok.mp4") {
 		t.Errorf("the working page's video should still be found, got %v", urls(videos))
+	}
+}
+
+// TestDestructiveLinksNotFollowed pins that a crawl carrying real credentials
+// never follows a link that acts on the account. Signing the user out mid-crawl
+// is the failure this prevents.
+func TestDestructiveLinksNotFollowed(t *testing.T) {
+	c := New(nil, Options{})
+	start, _ := url.Parse("https://example.com/")
+
+	blocked := []string{
+		"https://example.com/sign_out",
+		"https://example.com/signout",
+		"https://example.com/sign-out",
+		"https://example.com/logout",
+		"https://example.com/log_out",
+		"https://example.com/account/delete",
+		"https://example.com/subscriptions/cancel",
+		"https://example.com/items/42/destroy",
+		"https://example.com/email/unsubscribe?t=1",
+		"https://example.com/tokens/revoke",
+	}
+	for _, u := range blocked {
+		if c.shouldFollow(scrape.Link{URL: u, Kind: scrape.LinkAnchor}, start) {
+			t.Errorf("followed a destructive link: %s", u)
+		}
+	}
+
+	// Ordinary pages whose names merely contain a blocked word as a substring
+	// must still be crawled.
+	allowed := []string{
+		"https://example.com/programs/tt-tyre-rescue",
+		"https://example.com/categories/removals-and-storage",
+		"https://example.com/videos/cancellation-policy-explained",
+		"https://example.com/deleted-scenes-episode-3",
+	}
+	for _, u := range allowed {
+		if !c.shouldFollow(scrape.Link{URL: u, Kind: scrape.LinkAnchor}, start) {
+			t.Errorf("blocked an ordinary page: %s", u)
+		}
+	}
+}
+
+// TestTaskQueueOrdersDeepestFirst pins the scheduling rule that makes the walk
+// pipeline: the deepest pending page is taken next, so a chain is finished
+// rather than every chain's first hop being started.
+func TestTaskQueueOrdersDeepestFirst(t *testing.T) {
+	q := &taskQueue{}
+	for _, tk := range []task{
+		{depth: 0, path: []int{0}},
+		{depth: 2, path: []int{9}},
+		{depth: 1, path: []int{5}},
+		{depth: 2, path: []int{3}},
+	} {
+		q.push(tk)
+	}
+	var gotDepths []int
+	var gotPaths []int
+	for q.Len() > 0 {
+		tk := q.pop()
+		gotDepths = append(gotDepths, tk.depth)
+		gotPaths = append(gotPaths, tk.path[0])
+	}
+	wantDepths := []int{2, 2, 1, 0}
+	for i := range wantDepths {
+		if gotDepths[i] != wantDepths[i] {
+			t.Fatalf("depth order = %v, want %v", gotDepths, wantDepths)
+		}
+	}
+	// Equal depths break on tree position, not on insertion order, so the
+	// walk is reproducible.
+	if gotPaths[0] != 3 || gotPaths[1] != 9 {
+		t.Errorf("equal-depth ties = %v, want the lower path first", gotPaths[:2])
+	}
+}
+
+// TestResultOrderIsDeterministic runs the same concurrent crawl repeatedly and
+// requires identical output. Concurrency means completion order varies between
+// runs; sorting by tree position is what keeps the result stable.
+func TestResultOrderIsDeterministic(t *testing.T) {
+	srv := site(t)
+	defer srv.Close()
+
+	var first []string
+	for i := range 12 {
+		got := urls(run(t, srv.URL+"/", Options{Depth: 1, Concurrency: 4}))
+		if i == 0 {
+			first = got
+			continue
+		}
+		if len(got) != len(first) {
+			t.Fatalf("run %d returned %d videos, run 0 returned %d", i, len(got), len(first))
+		}
+		for j := range got {
+			if got[j] != first[j] {
+				t.Fatalf("run %d differs at %d:\n got  %v\n want %v", i, j, got, first)
+			}
+		}
+	}
+}
+
+// TestCancelledContextStopsTheWalk pins that cancellation ends the crawl
+// rather than leaving workers parked on the condition variable, which would
+// hang the process.
+func TestCancelledContextStopsTheWalk(t *testing.T) {
+	srv := site(t)
+	defer srv.Close()
+
+	u, err := url.Parse(srv.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		New(fetch.New(fetch.Options{}), Options{
+			Depth: 3, Concurrency: 4, Scrape: scrape.DefaultOptions(),
+		}).Run(ctx, u)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Run did not return after the context was cancelled")
 	}
 }
