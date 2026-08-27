@@ -30,3 +30,10 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Built binary
+/vid-scraper
+
+# Partial downloads
+*.part
+*.parts/

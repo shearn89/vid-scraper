@@ -1,0 +1,16 @@
+<!doctype html>
+<html><head><title>Media Tags</title></head>
+<body>
+  <video src="/clips/intro.mp4" title="Intro clip"></video>
+  <video poster="/thumb.jpg" data-src="lazy/loaded.webm"></video>
+  <video controls>
+    <source src="https://cdn.example.net/hi.mp4" type="video/mp4">
+    <source src="../rel/lo.webm" type="video/webm">
+  </video>
+  <picture>
+    <source srcset="not-a-video.jpg">
+    <img src="photo.jpg">
+  </picture>
+  <embed src="/legacy/movie.mov">
+  <object data="/legacy/old.flv"></object>
+</body></html>

@@ -1,0 +1,19 @@
+<!doctype html>
+<html><head><title>JSON-LD</title>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {"@type": "WebPage", "name": "wrapper"},
+    {
+      "@type": "VideoObject",
+      "name": "Keynote",
+      "contentUrl": "https://cdn.example.net/keynote.mp4",
+      "embedUrl": "https://player.example.net/embed/keynote"
+    },
+    [{"@type": "VideoObject", "name": "Nested in array",
+      "contentUrl": "/relative/nested.webm"}]
+  ]
+}
+</script>
+</head><body></body></html>
