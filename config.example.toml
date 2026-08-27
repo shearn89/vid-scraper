@@ -41,9 +41,15 @@ cookie_from_browser = true
 # The streams are MPEG-TS, so rewrap them into MP4 with ffmpeg after download.
 remux = true
 
+# Whether the picker opens with already-downloaded videos listed (dimmed) or
+# hidden. This is only the starting point: toggling with "e" in the picker is
+# remembered per site in ~/.local/state/vid-scraper/state.toml, which then wins.
+# Nothing ever writes to this file, so your comments and layout are safe.
+show_downloaded = true
+
 # Every programme's title starts with the show's name, which is redundant once
 # the files sit in a directory called farmyard-friends. Stripped before the title
-# becomes a filename, so "Farmyard Friends Go Digging" lands as goes-farming.mp4.
+# becomes a filename, so "Farmyard Friends Go Digging" lands as go-digging.mp4.
 # This is a regular expression, and it is validated when the config is loaded.
 title_trim = "^Farmyard Friends "
 

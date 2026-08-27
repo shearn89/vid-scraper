@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -264,4 +265,50 @@ func stripANSI(s string) string {
 		i++
 	}
 	return b.String()
+}
+
+// TestSelectWithReportsShowDownloaded pins that the picker hands its display
+// state back rather than persisting it: where that is remembered is the
+// caller's business, and this package holds no opinion about it.
+func TestSelectWithReportsShowDownloaded(t *testing.T) {
+	items := []Item{{Video: scrape.Video{URL: "https://x.test/a.m3u8"}}}
+
+	// Without a terminal the picker cannot run, but it must still hand back the
+	// state it was given rather than a zero value the caller would then save.
+	for _, start := range []bool{true, false} {
+		res, err := SelectWith(items, SelectOptions{ShowDownloaded: start})
+		if !errors.Is(err, ErrNoTerminal) {
+			t.Fatalf("err = %v, want ErrNoTerminal", err)
+		}
+		if res.ShowDownloaded != start {
+			t.Errorf("ShowDownloaded = %v, want %v", res.ShowDownloaded, start)
+		}
+	}
+
+	// An empty list is not an error, and likewise must not lose the setting.
+	res, err := SelectWith(nil, SelectOptions{ShowDownloaded: false})
+	if err != nil {
+		t.Fatalf("empty list: %v", err)
+	}
+	if res.ShowDownloaded {
+		t.Error("empty list discarded the setting")
+	}
+}
+
+// The starting state must actually reach the model, not just the result.
+func TestSelectOptionsSeedTheModel(t *testing.T) {
+	items := []Item{
+		{Video: scrape.Video{URL: "https://x.test/a.m3u8"}, Existing: "/tmp/a.mp4"},
+		{Video: scrape.Video{URL: "https://x.test/b.m3u8"}},
+	}
+	m := newModel(items)
+	m.showExisting = false
+	m.clampCursor()
+
+	if m.visible(0) {
+		t.Error("an already-downloaded row is visible with showExisting off")
+	}
+	if !m.visible(1) {
+		t.Error("a new row should always be visible")
+	}
 }

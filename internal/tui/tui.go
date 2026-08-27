@@ -48,25 +48,58 @@ type Item struct {
 // Select runs the interactive picker and returns the items the user chose.
 // It returns ErrAborted if the user quits without confirming.
 func Select(items []Item) ([]Item, error) {
+	res, err := SelectWith(items, SelectOptions{ShowDownloaded: true})
+	return res.Chosen, err
+}
+
+// SelectOptions carries the picker's starting state.
+type SelectOptions struct {
+	// ShowDownloaded lists already-downloaded videos, dimmed, rather than
+	// hiding them.
+	ShowDownloaded bool
+}
+
+// SelectResult is what the picker returns: the chosen items, and the interface
+// state worth remembering for next time.
+type SelectResult struct {
+	Chosen []Item
+	// ShowDownloaded is where the user left the toggle. Returned rather than
+	// written here so that persisting it stays the caller's decision, and this
+	// package keeps no opinion about where state lives.
+	ShowDownloaded bool
+}
+
+// SelectWith runs the interactive picker with an explicit starting state.
+func SelectWith(items []Item, opts SelectOptions) (SelectResult, error) {
+	res := SelectResult{ShowDownloaded: opts.ShowDownloaded}
+
 	// Nothing to pick means nothing to show. Starting a program here would
 	// block forever wherever there is no TTY — a test, a pipe, a cron run.
 	if len(items) == 0 {
-		return nil, nil
+		return res, nil
 	}
 	if !interactive() {
-		return nil, ErrNoTerminal
+		return res, ErrNoTerminal
 	}
 
-	final, err := tea.NewProgram(newModel(items), tea.WithAltScreen()).Run()
+	m := newModel(items)
+	m.showExisting = opts.ShowDownloaded
+	m.clampCursor()
+
+	final, err := tea.NewProgram(m, tea.WithAltScreen()).Run()
 	if err != nil {
-		return nil, fmt.Errorf("running video picker: %w", err)
+		return res, fmt.Errorf("running video picker: %w", err)
 	}
-	m, ok := final.(*model)
+	got, ok := final.(*model)
 	if !ok {
-		return nil, fmt.Errorf("running video picker: unexpected model %T", final)
+		return res, fmt.Errorf("running video picker: unexpected model %T", final)
 	}
-	if !m.confirmed {
-		return nil, ErrAborted
+	// Reported whether or not the user confirmed: they expressed a preference
+	// about the display either way, and abandoning a run should not discard it.
+	res.ShowDownloaded = got.showExisting
+	if !got.confirmed {
+		return res, ErrAborted
 	}
-	return m.chosen(), nil
+	res.Chosen = got.chosen()
+	return res, nil
 }

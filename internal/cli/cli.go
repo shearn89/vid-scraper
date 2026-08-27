@@ -28,6 +28,7 @@ import (
 	"github.com/shearn89/vid-scraper/internal/progress"
 	"github.com/shearn89/vid-scraper/internal/remux"
 	"github.com/shearn89/vid-scraper/internal/scrape"
+	"github.com/shearn89/vid-scraper/internal/state"
 	"github.com/shearn89/vid-scraper/internal/tui"
 )
 
@@ -124,6 +125,10 @@ Configuration:
   ~/.config/vid-scraper/config.toml sets a download directory per site, so the
   target host decides where files land when -o is not given. See
   config.example.toml. An explicit -o always wins.
+
+  Interface preferences you change in the picker are remembered per site in
+  ~/.local/state/vid-scraper/state.toml. That file is written by vid-scraper
+  and safe to delete; your config is never written to.
 
 Notes:
   HLS (.m3u8) streams are downloaded natively. DASH (.mpd) is reported but not
@@ -389,7 +394,8 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 
 	if c.selectMode {
-		videos, err = selectVideos(c.output, videos, c.titleTrim, stderr)
+		site, _ := userCfg.SiteFor(start.Host)
+		videos, err = selectVideos(c.output, start.Host, videos, c.titleTrim, site, stderr, logf)
 		if err != nil {
 			if errors.Is(err, tui.ErrAborted) {
 				fmt.Fprintln(stderr, "Aborted; nothing downloaded.")
@@ -532,7 +538,12 @@ func hasAlphanumeric(s string) bool {
 
 // selectVideos runs the interactive picker, pre-marking videos the target
 // directory already holds so a re-run defaults to fetching only what is new.
-func selectVideos(dir string, videos []scrape.Video, trim *regexp.Regexp, stderr io.Writer) ([]scrape.Video, error) {
+//
+// Whether those rows are shown at all is remembered per site: the picker's
+// starting state comes from the state file, falling back to the site's config
+// and then to showing them, and wherever the user leaves the toggle is written
+// back. Config is never rewritten, so a hand-annotated file stays as written.
+func selectVideos(dir, host string, videos []scrape.Video, trim *regexp.Regexp, site appcfg.Site, stderr io.Writer, logf func(string, ...any)) ([]scrape.Video, error) {
 	items := make([]tui.Item, 0, len(videos))
 	var hidden int
 	for _, v := range videos {
@@ -555,12 +566,30 @@ func selectVideos(dir string, videos []scrape.Video, trim *regexp.Regexp, stderr
 			"Run with --list to see them.\n",
 			hidden, plural(hidden, "y", "ies"), plural(hidden, "it", "them"))
 	}
-	chosen, err := tui.Select(items)
+	show := true
+	if site.ShowDownloaded != nil {
+		show = *site.ShowDownloaded
+	}
+	st := state.Load()
+	if remembered, known := st.ShowDownloaded(host); known {
+		show = remembered
+	}
+
+	res, err := tui.SelectWith(items, tui.SelectOptions{ShowDownloaded: show})
+	// Saved before the error is handled: quitting the picker is still a
+	// statement about how the user wants it to look next time.
+	if res.ShowDownloaded != show {
+		st.SetShowDownloaded(host, res.ShowDownloaded)
+		if saveErr := st.Save(); saveErr != nil {
+			// Losing a preference is not worth failing a run over.
+			logf("could not save interface state: %v", saveErr)
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
-	out := make([]scrape.Video, 0, len(chosen))
-	for _, it := range chosen {
+	out := make([]scrape.Video, 0, len(res.Chosen))
+	for _, it := range res.Chosen {
 		out = append(out, it.Video)
 	}
 	return out, nil

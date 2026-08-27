@@ -45,6 +45,14 @@ type Site struct {
 	// named after that show: `title_trim = "^Farmyard Friends "` turns
 	// "Farmyard Friends Go Digging" into "go-digging.mp4".
 	TitleTrim string `toml:"title_trim"`
+	// ShowDownloaded is the picker's starting state for this site: whether
+	// videos already on disk are listed (dimmed) or hidden entirely. A pointer
+	// so an absent key leaves the built-in default alone.
+	//
+	// This is only the starting point. Toggling in the picker is remembered in
+	// the state file, which then takes precedence — see internal/state, and
+	// note that nothing here is ever written back to this file.
+	ShowDownloaded *bool `toml:"show_downloaded"`
 	// Match, Depth, CookieFromBrowser and Remux are defaults for the
 	// equivalent flags. An explicitly given flag always wins.
 	Match             string `toml:"match"`
@@ -223,8 +231,14 @@ func (c *Config) DirFor(host string) string {
 	return abs
 }
 
-// normaliseHost puts a host into the form used as a Sites key: lowercase and
+// NormaliseHost puts a host into the form used as a Sites key: lowercase and
 // without the "www." prefix, so example.com and WWW.Example.com are one site.
+// Exported so that anything else keyed by site — remembered UI state, for one —
+// agrees with this package on what counts as the same host.
+func NormaliseHost(host string) string {
+	return normaliseHost(host)
+}
+
 func normaliseHost(host string) string {
 	h := strings.ToLower(strings.TrimSpace(host))
 	return strings.TrimPrefix(h, "www.")
