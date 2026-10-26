@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/shearn89/vid-scraper/internal/fetch"
@@ -209,7 +210,8 @@ func TestDownloadAES128(t *testing.T) {
 // it already has and still assembles a byte-correct file.
 func TestResumeFromPartialSegments(t *testing.T) {
 	const n = 6
-	var served int
+	// Atomic: the handler runs on concurrent server goroutines (Concurrency > 1).
+	var served atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/index.m3u8" {
 			var b strings.Builder
@@ -223,7 +225,7 @@ func TestResumeFromPartialSegments(t *testing.T) {
 		}
 		var i int
 		fmt.Sscanf(r.URL.Path, "/seg%d.ts", &i)
-		served++
+		served.Add(1)
 		w.Write(segBody(i))
 	}))
 	defer srv.Close()
@@ -244,8 +246,8 @@ func TestResumeFromPartialSegments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Download: %v", err)
 	}
-	if served != 3 {
-		t.Errorf("fetched %d segments, want 3 (the other 3 were already on disk)", served)
+	if got := served.Load(); got != 3 {
+		t.Errorf("fetched %d segments, want 3 (the other 3 were already on disk)", got)
 	}
 	got, _ := os.ReadFile(res.Path)
 	if !bytes.Equal(got, joined(n)) {
