@@ -1,0 +1,17 @@
+# Grouped so a week's updates arrive as one reviewable pull request.
+# Majors are excluded: they are done by hand, each in its own PR. Security
+# updates are separate and ignore these rules.
+#
+# Note: this repo has no CI workflow, so nothing tests these PRs before merge.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      gomod:
+        patterns: ["*"]

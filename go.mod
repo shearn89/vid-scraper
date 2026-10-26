@@ -1,8 +1,8 @@
 module github.com/shearn89/vid-scraper
 
-go 1.25.0
+go 1.26.0
 
-toolchain go1.26.7
+toolchain go1.26.10
 
 require (
 	github.com/BurntSushi/toml v1.6.0
@@ -11,8 +11,8 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/ansi v0.10.1
 	github.com/godbus/dbus/v5 v5.2.2
-	golang.org/x/net v0.58.0
-	golang.org/x/term v0.45.0
+	golang.org/x/net v0.61.0
+	golang.org/x/term v0.47.0
 	modernc.org/sqlite v1.38.2
 )
 
@@ -37,8 +37,8 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	modernc.org/libc v1.66.3 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
